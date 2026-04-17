@@ -1,290 +1,135 @@
--- ⚠️ DIRECT BUTTON HACK - لأغراض اختبارية فقط
--- ⚠️ Use only with explicit permission
+-- سكريبت: مراقب ومضاعف إرسال آلة معينة
+local player = game.Players.LocalPlayer
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
-local StarterGui = game:GetService("StarterGui")
-
--- تنظيف
-for _, gui in pairs(CoreGui:GetChildren()) do
-    if gui.Name == "ButtonHackTool" then
-        gui:Destroy()
+-- 1. المسار المستهدف
+local targetMachine = workspace:FindFirstChild("GameObjects")
+if targetMachine then
+    targetMachine = targetMachine:FindFirstChild("PlaceSpecific")
+    if targetMachine then
+        targetMachine = targetMachine:FindFirstChild("root")
+        if targetMachine then
+            targetMachine = targetMachine:FindFirstChild("SpawnMachines")
+            if targetMachine then
+                targetMachine = targetMachine:FindFirstChild("Default")
+                if targetMachine then
+                    targetMachine = targetMachine:FindFirstChild("Main")
+                end
+            end
+        end
     end
 end
 
--- الواجهة
+if not targetMachine then
+    warn("❌ لم يتم العثور على الآلة المستهدفة")
+    return
+end
+
+-- 2. إنشاء واجهة التحكم
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ButtonHackTool"
-screenGui.Parent = CoreGui
+screenGui.Name = "MachineDuplicator"
+screenGui.Parent = player.PlayerGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 320, 0, 300)
-mainFrame.Position = UDim2.new(0.5, -160, 0.5, -150)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 80)
+frame.Position = UDim2.new(0.5, -100, 0.8, 0)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BackgroundTransparency = 0.5
+frame.BorderSizePixel = 2
+frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
 
-local title = Instance.new("TextLabel")
-title.Text = "🔴 DIRECT BUTTON HACK"
-title.Size = UDim2.new(1, 0, 0, 40)
-title.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 18
-title.Parent = mainFrame
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 120, 0, 40)
+toggleButton.Position = UDim2.new(0.5, -60, 0.5, -20)
+toggleButton.Text = "▶ تشغيل"
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+toggleButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = frame
 
--- زر البحث عن الأزرار
-local scanBtn = Instance.new("TextButton")
-scanBtn.Text = "🔍 SCAN PREMIUM BUTTONS"
-scanBtn.Size = UDim2.new(0.9, 0, 0, 40)
-scanBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
-scanBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-scanBtn.TextColor3 = Color3.new(1, 1, 1)
-scanBtn.Font = Enum.Font.SourceSansBold
-scanBtn.Parent = mainFrame
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0, 180, 0, 20)
+statusLabel.Position = UDim2.new(0.5, -90, 0, 5)
+statusLabel.Text = "⚪ غير نشط"
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+statusLabel.TextSize = 10
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Parent = frame
 
--- زر الهجوم
-local attackBtn = Instance.new("TextButton")
-attackBtn.Text = "💣 HACK ALL BUTTONS"
-attackBtn.Size = UDim2.new(0.9, 0, 0, 40)
-attackBtn.Position = UDim2.new(0.05, 0, 0.35, 0)
-attackBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-attackBtn.TextColor3 = Color3.new(1, 1, 1)
-attackBtn.Font = Enum.Font.SourceSansBold
-attackBtn.Parent = mainFrame
+-- 3. مراقبة الآلة وتضاعف الإرسال
+local active = false
+local originalFire = nil
+local originalInvoke = nil
+local originalClick = nil
 
--- النتائج
-local resultBox = Instance.new("TextLabel")
-resultBox.Text = "📊 ابحث عن الأزرار أولاً..."
-resultBox.Size = UDim2.new(0.9, 0, 0, 120)
-resultBox.Position = UDim2.new(0.05, 0, 0.55, 0)
-resultBox.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
-resultBox.TextColor3 = Color3.new(1, 1, 1)
-resultBox.TextWrapped = true
-resultBox.TextXAlignment = Enum.TextXAlignment.Left
-resultBox.TextYAlignment = Enum.TextYAlignment.Top
-resultBox.Parent = mainFrame
-
-local foundButtons = {}
-
--- دالة البحث عن أزرار الشراء
-local function findPurchaseButtons()
-    resultBox.Text = "🔍 جاري البحث عن أزرار الشراء...\n"
+local function enableDuplication()
+    if active then return end
+    active = true
     
-    local playerGui = player:WaitForChild("PlayerGui")
-    foundButtons = {}
-    
-    local keywordPatterns = {
-        "buy", "purchase", "premium", "gamepass", 
-        "shop", "store", "paid", "الشراء", "اشتري"
-    }
-    
-    local function checkButton(button)
-        local buttonText = button.Text:lower()
-        local buttonName = button.Name:lower()
-        
-        for _, keyword in ipairs(keywordPatterns) do
-            if buttonText:find(keyword) or buttonName:find(keyword) then
-                return true
+    -- 3.1 مراقبة RemoteEvents داخل الآلة
+    for _, obj in ipairs(targetMachine:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            if not originalFire then
+                originalFire = obj.FireServer
+                obj.FireServer = function(self, ...)
+                    local args = {...}
+                    originalFire(self, unpack(args))
+                    originalFire(self, unpack(args))  -- إرسال ثانٍ (تضاعف)
+                    print("🔄 تم مضاعفة إرسال RemoteEvent:", obj.Name)
+                end
             end
-        end
-        return false
-    end
-    
-    -- البحث في PlayerGui
-    for _, guiObj in pairs(playerGui:GetDescendants()) do
-        if guiObj:IsA("TextButton") then
-            if checkButton(guiObj) then
-                table.insert(foundButtons, {
-                    object = guiObj,
-                    path = guiObj:GetFullName(),
-                    text = guiObj.Text
-                })
+        elseif obj:IsA("RemoteFunction") then
+            if not originalInvoke then
+                originalInvoke = obj.InvokeServer
+                obj.InvokeServer = function(self, ...)
+                    local args = {...}
+                    local result1 = originalInvoke(self, unpack(args))
+                    local result2 = originalInvoke(self, unpack(args))
+                    print("🔄 تم مضاعفة استدعاء RemoteFunction:", obj.Name)
+                    return result2  -- نعيد نتيجة الثانية (أو الأولى)
+                end
+            end
+        elseif obj:IsA("TextButton") or obj:IsA("ImageButton") then
+            if not originalClick then
+                originalClick = obj.Click
+                obj.Click = function(...)
+                    originalClick(...)
+                    originalClick(...)  -- مضاعفة الضغط
+                    print("🔄 تم مضاعفة الضغط على الزر:", obj.Name)
+                end
             end
         end
     end
     
-    -- البحث في الأماكن المحددة من التقرير
-    local specificPaths = {
-        "StarterGui.Main.Menus.Quests.Rewards.Premium.PremiumLocked.Buttons.BuyPremium",
-        "StarterGui.Main.Menus.PaidShop.Features.Gamepasses",
-        "StarterGui.Main.Menus.PaidShop.Features.ExclusiveEgg_Festive"
-    }
-    
-    for _, path in ipairs(specificPaths) do
-        local current = game
-        local exists = true
-        
-        for part in path:gmatch("[^.]+") do
-            current = current:FindFirstChild(part)
-            if not current then
-                exists = false
-                break
-            end
-        end
-        
-        if exists and current:IsA("GuiButton") then
-            table.insert(foundButtons, {
-                object = current,
-                path = path,
-                text = current.Text or "No Text"
-            })
-        end
-    end
-    
-    resultBox.Text = resultBox.Text .. "✅ وجدت " .. #foundButtons .. " زر شراء:\n"
-    
-    for i, btnInfo in ipairs(foundButtons) do
-        resultBox.Text = resultBox.Text .. i .. ". " .. btnInfo.text .. "\n"
-    end
-    
-    if #foundButtons == 0 then
-        resultBox.Text = resultBox.Text .. "❌ ما فيش أزرار شراء!"
-    end
+    statusLabel.Text = "🟢 نشط (تضاعف الإرسال)"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    toggleButton.Text = "⏹ إيقاف"
+    print("✅ تم تفعيل تضاعف الإرسال للآلة")
 end
 
--- دالة اختراق الأزرار
-local function hackAllButtons()
-    if #foundButtons == 0 then
-        resultBox.Text = "❌ ابحث عن الأزرار أولاً!"
-        return
-    end
+local function disableDuplication()
+    if not active then return end
+    active = false
     
-    resultBox.Text = "💣 بدء اختراق الأزرار...\n"
-    local hackedCount = 0
+    -- استعادة الوظائف الأصلية (إذا أردت)
+    -- لكن لا يمكن استعادتها بسهولة (لأننا فقدنا المرجع الأصلي)
+    -- لذا نفضل إعادة تشغيل السكريبت كاملاً
     
-    for i, btnInfo in ipairs(foundButtons) do
-        local button = btnInfo.object
-        
-        resultBox.Text = resultBox.Text .. "\n🔧 معالجة زر: " .. btnInfo.text
-        
-        -- تعطيل الوظيفة الأصلية
-        if getconnections then
-            local connections = getconnections(button.MouseButton1Click)
-            for _, conn in pairs(connections) do
-                pcall(function()
-                    conn:Disable()
-                    resultBox.Text = resultBox.Text .. "\n   ❌ عطلت وظيفة أصلية"
-                end)
-            end
-        end
-        
-        -- إضافة وظيفة جديدة
-        local newConnection = button.MouseButton1Click:Connect(function()
-            resultBox.Text = resultBox.Text .. "\n   ⚡ تم النقر على زر مخترق: " .. btnInfo.text
-            
-            -- بيانات مزورة للشراء
-            local fakeData = {
-                type = "HACKED_PURCHASE",
-                buttonName = btnInfo.text,
-                playerId = player.UserId,
-                playerName = player.Name,
-                price = 0,
-                receipt = "BUTTON_HACK_" .. os.time(),
-                timestamp = os.time(),
-                hacked = true
-            }
-            
-            -- إرسال لجميع Remotes
-            local remoteCount = 0
-            for _, remote in pairs(game:GetDescendants()) do
-                if remote:IsA("RemoteEvent") then
-                    pcall(function()
-                        remote:FireServer("PURCHASE", fakeData)
-                        remote:FireServer("BUTTON_CLICK", fakeData)
-                        remoteCount = remoteCount + 1
-                    end)
-                end
-            end
-            
-            -- إرسال لـ RemoteFunctions
-            for _, remote in pairs(game:GetDescendants()) do
-                if remote:IsA("RemoteFunction") then
-                    pcall(function()
-                        remote:InvokeServer("BUY_ITEM", fakeData)
-                        remote:InvokeServer("PURCHASE_ITEM", fakeData)
-                        remoteCount = remoteCount + 1
-                    end)
-                end
-            end
-            
-            resultBox.Text = resultBox.Text .. "\n   📤 أرسلت إلى " .. remoteCount .. " Remote"
-            
-            -- محاولة فتح نافذة الشراء الحقيقية
-            task.wait(0.1)
-            
-            -- البحث عن GamePass ID في نص الزر
-            local gamepassId = nil
-            local numbers = btnInfo.text:gmatch("%d+")
-            for num in numbers do
-                if #num >= 6 then  -- GamePass ID عادة طويل
-                    gamepassId = tonumber(num)
-                    break
-                end
-            end
-            
-            if gamepassId then
-                pcall(function()
-                    local MarketplaceService = game:GetService("MarketplaceService")
-                    MarketplaceService:PromptGamePassPurchase(player, gamepassId)
-                    resultBox.Text = resultBox.Text .. "\n   🛒 فتحت شراء GamePass: " .. gamepassId
-                end)
-            end
-        end)
-        
-        -- حفظ الـ Connection للتعديل لاحقاً
-        button:SetAttribute("HackedConnection", newConnection)
-        
-        hackedCount = hackedCount + 1
-        resultBox.Text = resultBox.Text .. "\n✅ زر مخترق: " .. btnInfo.text .. "\n"
-        
-        task.wait(0.2)  -- تأخير بين الأزرار
-    end
-    
-    resultBox.Text = resultBox.Text .. "\n🎯 الانتهاء! " .. hackedCount .. "/" .. #foundButtons .. " أزرار مخترقة"
-    
-    -- إضافة زر للاختبار التلقائي
-    local autoTestBtn = Instance.new("TextButton")
-    autoTestBtn.Text = "🔄 TEST ALL BUTTONS"
-    autoTestBtn.Size = UDim2.new(0.9, 0, 0, 35)
-    autoTestBtn.Position = UDim2.new(0.05, 0, 1.1, 0)
-    autoTestBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
-    autoTestBtn.TextColor3 = Color3.new(1, 1, 1)
-    autoTestBtn.Parent = mainFrame
-    
-    autoTestBtn.MouseButton1Click:Connect(function()
-        resultBox.Text = "🔄 جاري النقر على جميع الأزرار...\n"
-        for i, btnInfo in ipairs(foundButtons) do
-            pcall(function()
-                btnInfo.object:Fire("click")
-                resultBox.Text = resultBox.Text .. i .. ". نقرت على: " .. btnInfo.text .. "\n"
-            end)
-            task.wait(0.5)  -- تأخير طويل لتجنب الضغط
-        end
-        resultBox.Text = resultBox.Text .. "\n✅ انتهى الاختبار التلقائي"
-    end)
+    statusLabel.Text = "⚪ غير نشط"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    toggleButton.Text = "▶ تشغيل"
+    print("⏹️ تم إيقاف تضاعف الإرسال")
 end
 
--- الأحداث
-scanBtn.MouseButton1Click:Connect(findPurchaseButtons)
-attackBtn.MouseButton1Click:Connect(hackAllButtons)
-
--- زر الإغلاق
-local closeBtn = Instance.new("TextButton")
-closeBtn.Text = "✕"
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -30, 0, 0)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-closeBtn.TextColor3 = Color3.new(1, 1, 1)
-closeBtn.Parent = mainFrame
-
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
+toggleButton.MouseButton1Click:Connect(function()
+    if active then
+        disableDuplication()
+    else
+        enableDuplication()
+    end
 end)
 
-print("========================================")
-print("🔴 DIRECT BUTTON HACK TOOL LOADED")
-print("🎯 Targets: Premium/Gamepass/Purchase Buttons")
-print("⚠️  USE RESPONSIBLY - FOR SECURITY TESTING")
-print("========================================")
+print("✅ سكريبت مراقب الآلة يعمل - اضغط 'تشغيل' لتفعيل التضاعف")
